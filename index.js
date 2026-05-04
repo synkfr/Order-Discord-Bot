@@ -29,6 +29,8 @@ const client = new Client({
 
 const config = {
     token: process.env.TOKEN,
+    clientId: process.env.CLIENT_ID,
+    guildId: process.env.GUILD_ID,
     ordersChannelId: process.env.ORDERS_CHANNEL_ID,
     pendingCatId: process.env.PENDING_CAT_ID,
     progressCatId: process.env.PROGRESS_CAT_ID,
