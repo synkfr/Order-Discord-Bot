@@ -43,6 +43,12 @@ function generateShortId() {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
+// Helper: Check if URL is an image
+function isImage(url) {
+    if (!url) return false;
+    return /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(url);
+}
+
 // Helper: Logging
 async function logAction(guild, title, description, color = 0x95A5A6) {
     if (!config.logChannelId) return;
@@ -84,7 +90,8 @@ client.on(Events.InteractionCreate, async interaction => {
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('order_price').setLabel("Price").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('order_service').setLabel("Service Type").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('order_prompt').setLabel("Description").setStyle(TextInputStyle.Paragraph).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('order_notes').setLabel("Notes / Deadline").setStyle(TextInputStyle.Short).setRequired(false))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('order_notes').setLabel("Notes / Deadline").setStyle(TextInputStyle.Short).setRequired(false)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('order_link').setLabel("Reference Link (Drive/YT)").setStyle(TextInputStyle.Short).setPlaceholder('Or upload a file (Max 25MB)').setRequired(false))
             );
 
             await interaction.showModal(modal);
@@ -151,11 +158,13 @@ client.on(Events.InteractionCreate, async interaction => {
             const service = fields.getTextInputValue('order_service');
             const prompt = fields.getTextInputValue('order_prompt');
             const notes = fields.getTextInputValue('order_notes') || 'None';
+            const refLink = fields.getTextInputValue('order_link');
             const orderId = generateShortId();
 
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             try {
+                const finalRef = attachmentUrl || refLink || null;
                 const forumChannel = await guild.channels.fetch(config.ordersChannelId).catch(() => null);
                 if (!forumChannel) return interaction.editReply({ content: 'Forum channel not found.' });
 
@@ -172,13 +181,19 @@ client.on(Events.InteractionCreate, async interaction => {
                     .setFooter({ text: 'Status: Available' })
                     .setTimestamp();
 
-                if (attachmentUrl) embed.setImage(attachmentUrl);
+                if (finalRef && isImage(finalRef)) embed.setImage(finalRef);
+
+                const components = [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('take_order').setLabel('Take Order').setStyle(ButtonStyle.Primary))];
+                
+                if (finalRef) {
+                    components[0].addComponents(new ButtonBuilder().setLabel('View Reference').setStyle(ButtonStyle.Link).setURL(finalRef));
+                }
 
                 const post = await forumChannel.threads.create({
                     name: `AVAILABLE | ${service} (${orderId})`,
                     message: {
                         embeds: [embed],
-                        components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('take_order').setLabel('Take Order').setStyle(ButtonStyle.Primary))]
+                        components: components
                     }
                 });
 
@@ -199,7 +214,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     price,
                     service,
                     description: prompt,
-                    attachmentUrl,
+                    attachmentUrl: finalRef,
                     forumPostId: post.lastMessageId,
                     ticketChannelId: ticket.id
                 });
@@ -213,7 +228,7 @@ client.on(Events.InteractionCreate, async interaction => {
                         { name: 'Staff', value: user.toString(), inline: true },
                         { name: 'Details', value: prompt }
                     );
-                if (attachmentUrl) summaryEmbed.setImage(attachmentUrl);
+                if (finalRef && isImage(finalRef)) summaryEmbed.setImage(finalRef);
 
                 await ticket.send({ embeds: [summaryEmbed] });
                 await interaction.editReply({ content: `Order ${orderId} created. Post: ${post} | Ticket: ${ticket}` });
@@ -321,6 +336,10 @@ client.on(Events.InteractionCreate, async interaction => {
                 new ButtonBuilder().setCustomId('complete_order').setLabel('Complete Order').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('dispute_order').setLabel('Dispute').setStyle(ButtonStyle.Secondary)
             );
+
+            if (order.attachment_url) {
+                row.addComponents(new ButtonBuilder().setLabel('View Reference').setStyle(ButtonStyle.Link).setURL(order.attachment_url));
+            }
 
             await ticket.send({ content: `Order claimed by ${user.toString()}`, components: [row] });
             await logAction(guild, 'Order Claimed', `Order ${order.short_id} claimed by ${user.tag}`, 0xE67E22);
