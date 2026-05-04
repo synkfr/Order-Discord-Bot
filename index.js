@@ -333,8 +333,7 @@ client.on(Events.InteractionCreate, async interaction => {
             await ticket.permissionOverwrites.edit(user.id, { ViewChannel: true, SendMessages: true });
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('complete_order').setLabel('Complete Order').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('dispute_order').setLabel('Dispute').setStyle(ButtonStyle.Secondary)
+                new ButtonBuilder().setCustomId('complete_order').setLabel('Complete Order').setStyle(ButtonStyle.Success)
             );
 
             if (order.attachment_url) {
@@ -385,13 +384,6 @@ client.on(Events.InteractionCreate, async interaction => {
                 console.error('Completion error:', e);
                 await interaction.editReply({ content: 'Error during completion process.' }).catch(() => null);
             }
-        }
-
-        if (customId === 'dispute_order') {
-            await interaction.reply({ content: 'Staff has been notified of the dispute. Please wait for an administrator.', flags: MessageFlags.Ephemeral });
-            await logAction(guild, 'Dispute Raised', `Dispute raised in ${channel.toString()} by ${user.tag}`, 0xE74C3C);
-            // Optionally ping admins in the log channel or ticket
-            await channel.send({ content: `Attention @here: A dispute has been raised by ${user.toString()}.` });
         }
     }
 });
